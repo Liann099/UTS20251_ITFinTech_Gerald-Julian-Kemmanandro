@@ -6,30 +6,25 @@ export default function Payment() {
   const [cart, setCart] = useState([]);
   const [paymentMethod, setPaymentMethod] = useState('Credit/Debit Card');
   const router = useRouter();
-
   useEffect(() => {
     const savedCart = localStorage.getItem('cart');
     if (savedCart) {
       setCart(JSON.parse(savedCart));
     }
   }, []);
-
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const shipping = 5; // Asumsi biaya shipping
+  const shipping = 5; // Asumsi tax shipping =]
   const total = subtotal + shipping;
-
-// pages/payment.js -> (ganti fungsi handlePayment)
 
   const handlePayment = async () => {
     alert('Connecting to payment gateway...');
     
     const orderDetails = {
       items: cart,
-      total: total, // Pastikan total sudah dihitung
+      total: total, 
     };
 
     try {
-      // Panggil API route yang baru dibuat
       const response = await fetch('/api/create-payment', {
         method: 'POST',
         headers: {
@@ -37,11 +32,8 @@ export default function Payment() {
         },
         body: JSON.stringify(orderDetails),
       });
-
       const data = await response.json();
-
       if (response.ok) {
-        // Jika berhasil, redirect user ke halaman pembayaran Xendit
         window.location.href = data.invoiceUrl;
       } else {
         throw new Error(data.error || 'Something went wrong');
@@ -91,15 +83,15 @@ export default function Payment() {
         <h4>Order Summary</h4>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <p>Item(s)</p>
-          <p>${subtotal.toFixed(2)}</p>
+          <p>Rp.{subtotal.toFixed(2)}</p>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <p>Shipping</p>
-          <p>${shipping.toFixed(2)}</p>
+          <p>Rp.{shipping.toFixed(2)}</p>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '1.2em' }}>
           <p>Total</p>
-          <p>${total.toFixed(2)}</p>
+          <p>Rp.{total.toFixed(2)}</p>
         </div>
       </div>
 

@@ -1,38 +1,40 @@
 // pages/api/create-payment.js
-
 import { Xendit } from 'xendit-node';
+import dbConnect from '../../lib/mongoose';
+import Order from '../../models/Order';
+import dotenv from 'dotenv';
+dotenv.config({ path: '.env.local' });
 
-// Initialize Xendit with your secret key
 const x = new Xendit({
   secretKey: process.env.XENDIT_SECRET_KEY,
 });
 
-const { Invoice } = x;
-
 export default async function handler(req, res) {
-  // Pastikan request adalah POST
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
-
+  await dbConnect();
   try {
     const { total, items } = req.body;
-
-    // Buat external_id yang unik untuk setiap transaksi
-    const externalID = `invoice-${Date.now()}`;
-    
-    const invoice = await Invoice.create({
-      externalID: externalID,
-      amount: total,
-      payerEmail: 'customer@example.com', // Anda bisa minta email user di form
-      description: `Payment for ${items.length} items`,
+    const externalId = `invoice-${Date.now()}`;  
+    const invoice = await x.Invoice.createInvoice({
+      data: {
+        externalId: externalId, 
+        amount: Math.round(total),
+        currency: 'IDR', 
+        payerEmail: 'customer@example.com',
+        description: `Payment for ${items.length} items`,
+      },
     });
-
-    // Kirim kembali invoice URL ke frontend
+    await Order.create({
+      external_id: externalId,  
+      amount: total,
+      items: items,
+      status: 'PENDING',
+    });
     res.status(200).json({ invoiceUrl: invoice.invoiceUrl });
-
   } catch (error) {
-    console.error('Error creating invoice:', error);
+    console.error('FINAL XENDIT API ERROR:', error);
     res.status(500).json({ error: 'Failed to create payment invoice' });
   }
 }

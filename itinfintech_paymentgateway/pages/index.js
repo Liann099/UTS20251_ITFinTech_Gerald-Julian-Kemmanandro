@@ -1,36 +1,41 @@
+// pages/index.js
 import Head from 'next/head';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 
-// Data produk sementara (akan diganti dengan data dari MongoDB)
-const initialProducts = [
-  { id: 1, name: 'Product A', price: 100, description: 'Short description A', category: 'Drinks' },
-  { id: 2, name: 'Product B', price: 150, description: 'Short description B', category: 'Snacks' },
-  { id: 3, name: 'Product C', price: 200, description: 'Short description C', category: 'Bundles' },
-];
-
 export default function SelectItem() {
-  const [products, setProducts] = useState(initialProducts);
+  const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
   const router = useRouter();
 
+  useEffect(() => {
+    async function getProducts() {
+      try {
+        const response = await fetch('/api/products');
+        if (!response.ok) {
+          throw new Error('Failed to fetch products');
+        }
+        const data = await response.json();
+        setProducts(data);
+      } catch (error) {
+        console.error('Error fetching products:', error);
+      }
+    }
+    getProducts();
+  }, []);
+
   const addToCart = (product) => {
-    // Cek apakah produk sudah ada di keranjang
-    const existingItem = cart.find(item => item.id === product.id);
+    const existingItem = cart.find(item => item._id === product._id);
     if (existingItem) {
-      // Jika sudah ada, tambah quantity
       setCart(cart.map(item =>
-        item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+        item._id === product._id ? { ...item, quantity: item.quantity + 1 } : item
       ));
     } else {
-      // Jika belum ada, tambahkan ke keranjang
       setCart([...cart, { ...product, quantity: 1 }]);
     }
-    console.log('Cart:', cart); // Untuk cek isi keranjang di console
   };
 
   const goToCheckout = () => {
-    // Simpan data keranjang ke localStorage agar bisa diakses di halaman checkout
     localStorage.setItem('cart', JSON.stringify(cart));
     router.push('/checkout');
   };
@@ -42,19 +47,18 @@ export default function SelectItem() {
       </Head>
 
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2>Logo</h2>
+        <h2>Catalogue</h2>
         <button onClick={goToCheckout}>
           Cart ({cart.reduce((sum, item) => sum + item.quantity, 0)})
         </button>
       </header>
 
-      {/* Tampilan produk */}
       <div>
         <h3>All Products</h3>
         {products.map((product) => (
-          <div key={product.id} style={{ border: '1px solid #ccc', padding: '10px', marginBottom: '10px', borderRadius: '5px' }}>
+          <div key={product._id} style={{ border: '1px solid #ccc', padding: '10px', marginBottom: '10px', borderRadius: '5px' }}>
             <h4>{product.name}</h4>
-            <p>${product.price}</p>
+            <p>Rp.{product.price}</p>
             <p>{product.description}</p>
             <button onClick={() => addToCart(product)}>Add +</button>
           </div>
