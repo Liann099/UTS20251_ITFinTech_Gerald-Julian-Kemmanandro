@@ -16,15 +16,20 @@ export default async function handler(req, res) {
   try {
     const { total, items } = req.body;
     const externalId = `invoice-${Date.now()}`;  
-    const invoice = await x.Invoice.createInvoice({
-      data: {
-        externalId: externalId, 
-        amount: Math.round(total),
-        currency: 'IDR', 
-        payerEmail: 'customer@example.com',
-        description: `Payment for ${items.length} items`,
-      },
-    });
+    
+const invoice = await x.Invoice.createInvoice({
+  data: {
+    externalId: externalId,
+    amount: Math.round(total),
+    currency: 'IDR',
+    payerEmail: 'customer@example.com',
+    description: `Payment for ${items.length} items`,
+    successRedirectUrl: 'https://yourdomain.com/paymentsuccess',  // Replace with your actual domain
+    failureRedirectUrl: 'https://yourdomain.com/paymentfailure'   // Optional: Create a failure page if needed
+  },
+});
+
+
     await Order.create({
       external_id: externalId,  
       amount: total,
