@@ -1,4 +1,3 @@
-// pages/payment.js
 import Head from 'next/head';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
@@ -27,7 +26,7 @@ export default function Payment() {
   }, []);
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const shipping = 0; // Changed to Free
+  const shipping = 0; 
   const total = subtotal + shipping;
 
   const handlePayment = async () => {

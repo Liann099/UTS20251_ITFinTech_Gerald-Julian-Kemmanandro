@@ -1,4 +1,3 @@
-// pages/checkout.js
 import Head from 'next/head';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
@@ -41,7 +40,7 @@ export default function Checkout() {
   };
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const total = subtotal; // Simplified to just subtotal with free shipping
+  const total = subtotal; 
 
   const proceedToPayment = () => {
     localStorage.setItem('cart', JSON.stringify(cart));

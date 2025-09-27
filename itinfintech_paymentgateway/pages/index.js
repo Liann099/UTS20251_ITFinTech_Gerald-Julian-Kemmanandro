@@ -1,4 +1,3 @@
-// pages/index.js
 import Head from 'next/head';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
@@ -32,19 +31,19 @@ export default function SelectItem() {
   useEffect(() => {
     let tempProducts = [...products];
 
-    // Filter by search term
+    // search
     if (searchTerm) {
       tempProducts = tempProducts.filter(product =>
         product.name.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
-    // Filter by type (assuming products have a 'category' field)
+    // Type filter
     if (selectedType) {
       tempProducts = tempProducts.filter(product => product.category === selectedType);
     }
 
-    // Filter by price range
+    // Filter price range
     if (selectedPriceRange) {
       let min = 0;
       let max = Infinity;
