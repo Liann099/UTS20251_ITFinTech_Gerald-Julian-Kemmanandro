@@ -18,12 +18,12 @@ async function seed() {
     await Product.deleteMany();
 
     const products = [
-      { name: "Coca Cola", category: "Drinks", price: 2000},
-      { name: "Sprite", category: "Drinks", price: 9000 },
-      { name: "Potato Chips", category: "Snacks", price: 15000 },
-      { name: "Chocolate Bar", category: "Snacks", price: 12000 },
-      { name: "Burger", category: "Meals", price: 25000 },
-      { name: "Fried Rice", category: "Meals", price: 30000 }
+      { name: "20mm x 20M Industrial Tape", category: "Industrial", price: 20000},
+      { name: "15mm x 15M Black tape", category: "Hard", price: 9000 },
+      { name: "10mm x 30M Clear Tape", category: "Clear", price: 15000 },
+      { name: "5mm x 10M Clear Tape", category: "Clear", price: 12000 },
+      { name: "10mm x 25M Yellow Tape", category: "Paper", price: 25000 },
+      // LAGII! TAMBAH LAGII!
     ];
 
     await Product.insertMany(products);

@@ -1,4 +1,3 @@
-// pages/api/create-payment.js
 import { Xendit } from 'xendit-node';
 import dbConnect from '../../lib/mongoose';
 import Order from '../../models/Order';
