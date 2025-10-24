@@ -108,17 +108,23 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchTurnoverData = async () => {
       try {
+        console.log('Fetching turnover data for:', chartType); // Debug log
         const analyticsRes = await fetch(`/api/analytics?groupBy=${chartType}`);
+        console.log('Analytics response status:', analyticsRes.status); // Debug log
         if (analyticsRes.ok) {
           const analyticsData = await analyticsRes.json();
-          setTurnoverData(analyticsData.turnover);
+          console.log('Analytics data received:', analyticsData); // Debug log
+          setTurnoverData(analyticsData.turnover || []); // Add fallback to empty array
         } else {
-          console.error('Failed to fetch turnover data');
+          const errorText = await analyticsRes.text();
+          console.error('Failed to fetch turnover data:', errorText);
           toast.error('Error loading turnover data.');
+          setTurnoverData([]); // Set empty array on error
         }
       } catch (error) {
-        console.error('Error fetching turnover ', error);
+        console.error('Error fetching turnover:', error);
         toast.error('An error occurred while loading turnover data.');
+        setTurnoverData([]); // Set empty array on error
       }
     };
     fetchTurnoverData();

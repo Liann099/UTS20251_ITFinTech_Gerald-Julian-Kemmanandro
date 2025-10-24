@@ -11,7 +11,8 @@ export default function Payment() {
     address: '',
     town: '',
     state: '',
-    postcode: ''
+    postcode: '',
+    phone: ''
   });
   const [isShippingValid, setIsShippingValid] = useState(false);
   const [userEmail, setUserEmail] = useState('');
@@ -48,12 +49,17 @@ export default function Payment() {
 
   const handlePayment = async () => {
     if (!isShippingValid) {
-      alert('Please complete the shipping address.');
+      alert('Please complete the shipping address and phone number.');
       return;
     }
 
     if (!userEmail) {
       alert('User email not found. Please log in again.');
+      return;
+    }
+
+    if (!shippingAddress.phone) {
+      alert('Please provide a phone number for order updates.');
       return;
     }
 
@@ -70,6 +76,7 @@ export default function Payment() {
       total: total,
       customer_email: userEmail,
       customer_name: userName || 'Customer',
+      customer_phone: shippingAddress.phone
     };
 
     try {
@@ -93,18 +100,21 @@ export default function Payment() {
   };
 
   const validateShipping = () => {
-    const { country, address, town, state, postcode } = shippingAddress;
-    const isValid = country && address && town && state && postcode;
+    const { country, address, town, state, postcode, phone } = shippingAddress;
+    const isValid = country && address && town && state && postcode && phone;
     setIsShippingValid(isValid);
   };
 
   const handleAddressChange = (field, value) => {
     setShippingAddress(prev => {
       const newAddress = { ...prev, [field]: value };
-      validateShipping();
       return newAddress;
     });
   };
+
+  useEffect(() => {
+    validateShipping();
+  }, [shippingAddress]);
 
   const toggleProductDetails = (e) => {
     const dropdown = e.target.nextElementSibling;
@@ -164,8 +174,8 @@ export default function Payment() {
           </div>
         </header>
         
-        <div style={{ display: 'flex', gap: '30px' }}>
-          <div style={{ flex: 1, backgroundColor: '#fff', padding: '32px', borderRadius: '24px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
+        <div style={{ display: 'flex', gap: '30px', flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: '300px', backgroundColor: '#fff', padding: '32px', borderRadius: '24px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', boxSizing: 'border-box' }}>
             <h2 style={{ fontSize: '20px', fontWeight: '700', marginTop: '0', marginBottom: '20px', textTransform: 'uppercase', color: '#222', display: 'flex', alignItems: 'center', gap: '10px' }}>
               🏠 DELIVERY ADDRESS
             </h2>
@@ -175,7 +185,7 @@ export default function Payment() {
                 value={shippingAddress.country}
                 onChange={(e) => handleAddressChange('country', e.target.value)}
                 placeholder="Country *"
-                style={{ width: '100%', padding: '14px 20px', marginBottom: '0', border: '2px solid #e0e0e0', borderRadius: '12px', backgroundColor: '#fff', color: '#333', fontSize: '15px', transition: 'all 0.3s ease', outline: 'none' }}
+                style={{ width: '100%', padding: '14px 20px', marginBottom: '0', border: '2px solid #e0e0e0', borderRadius: '12px', backgroundColor: '#fff', color: '#333', fontSize: '15px', transition: 'all 0.3s ease', outline: 'none', boxSizing: 'border-box' }}
                 onFocus={(e) => e.target.style.borderColor = '#667eea'}
                 onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
               />
@@ -184,17 +194,17 @@ export default function Payment() {
                 value={shippingAddress.address}
                 onChange={(e) => handleAddressChange('address', e.target.value)}
                 placeholder="Street Address *"
-                style={{ width: '100%', padding: '14px 20px', marginBottom: '0', border: '2px solid #e0e0e0', borderRadius: '12px', backgroundColor: '#fff', color: '#333', fontSize: '15px', transition: 'all 0.3s ease', outline: 'none' }}
+                style={{ width: '100%', padding: '14px 20px', marginBottom: '0', border: '2px solid #e0e0e0', borderRadius: '12px', backgroundColor: '#fff', color: '#333', fontSize: '15px', transition: 'all 0.3s ease', outline: 'none', boxSizing: 'border-box' }}
                 onFocus={(e) => e.target.style.borderColor = '#667eea'}
                 onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
               />
-              <div style={{ display: 'flex', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '16px' }}>
                 <input
                   type="text"
                   value={shippingAddress.town}
                   onChange={(e) => handleAddressChange('town', e.target.value)}
                   placeholder="Town/City *"
-                  style={{ flex: 1, padding: '14px 20px', border: '2px solid #e0e0e0', borderRadius: '12px', backgroundColor: '#fff', color: '#333', fontSize: '15px', transition: 'all 0.3s ease', outline: 'none' }}
+                  style={{ padding: '14px 20px', border: '2px solid #e0e0e0', borderRadius: '12px', backgroundColor: '#fff', color: '#333', fontSize: '15px', transition: 'all 0.3s ease', outline: 'none', boxSizing: 'border-box' }}
                   onFocus={(e) => e.target.style.borderColor = '#667eea'}
                   onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
                 />
@@ -203,7 +213,7 @@ export default function Payment() {
                   value={shippingAddress.state}
                   onChange={(e) => handleAddressChange('state', e.target.value)}
                   placeholder="State/Province *"
-                  style={{ flex: 1, padding: '14px 20px', border: '2px solid #e0e0e0', borderRadius: '12px', backgroundColor: '#fff', color: '#333', fontSize: '15px', transition: 'all 0.3s ease', outline: 'none' }}
+                  style={{ padding: '14px 20px', border: '2px solid #e0e0e0', borderRadius: '12px', backgroundColor: '#fff', color: '#333', fontSize: '15px', transition: 'all 0.3s ease', outline: 'none', boxSizing: 'border-box' }}
                   onFocus={(e) => e.target.style.borderColor = '#667eea'}
                   onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
                 />
@@ -212,10 +222,27 @@ export default function Payment() {
                   value={shippingAddress.postcode}
                   onChange={(e) => handleAddressChange('postcode', e.target.value)}
                   placeholder="Postcode/ZIP *"
-                  style={{ flex: 1, padding: '14px 20px', border: '2px solid #e0e0e0', borderRadius: '12px', backgroundColor: '#fff', color: '#333', fontSize: '15px', transition: 'all 0.3s ease', outline: 'none' }}
+                  style={{ padding: '14px 20px', border: '2px solid #e0e0e0', borderRadius: '12px', backgroundColor: '#fff', color: '#333', fontSize: '15px', transition: 'all 0.3s ease', outline: 'none', boxSizing: 'border-box' }}
                   onFocus={(e) => e.target.style.borderColor = '#667eea'}
                   onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
                 />
+              </div>
+              <div style={{ marginTop: '8px' }}>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#222', marginBottom: '8px' }}>
+                  📱 Phone Number *
+                </label>
+                <input
+                  type="tel"
+                  value={shippingAddress.phone}
+                  onChange={(e) => handleAddressChange('phone', e.target.value)}
+                  placeholder="+62 812 3456 7890"
+                  style={{ width: '100%', padding: '14px 20px', marginBottom: '0', border: '2px solid #e0e0e0', borderRadius: '12px', backgroundColor: '#fff', color: '#333', fontSize: '15px', transition: 'all 0.3s ease', outline: 'none', boxSizing: 'border-box' }}
+                  onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                  onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
+                />
+                <p style={{ fontSize: '12px', color: '#888', marginTop: '6px', marginBottom: '0' }}>
+                  We'll send order updates via WhatsApp
+                </p>
               </div>
             </div>
 
@@ -300,7 +327,7 @@ export default function Payment() {
           </div>
           
           {/* Order Summary */}
-          <div style={{ width: '380px', backgroundColor: '#fff', padding: '32px', borderRadius: '24px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', height: 'fit-content', position: 'sticky', top: '20px' }}>
+          <div style={{ width: '100%', maxWidth: '380px', backgroundColor: '#fff', padding: '32px', borderRadius: '24px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', height: 'fit-content', position: 'sticky', top: '20px', boxSizing: 'border-box' }}>
             <h2 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '20px', textTransform: 'uppercase', color: '#222' }}>📦 DETAIL PRODUCT</h2>
             <div style={{ maxHeight: '320px', overflowY: 'auto', marginBottom: '20px' }}>
               {cart.length <= 2 ? (

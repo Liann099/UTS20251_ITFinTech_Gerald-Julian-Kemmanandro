@@ -1,11 +1,66 @@
-// pages/api/webhook/xendit.js
-import dbConnect from '../../lib/mongoose'; // Adjust path as needed
-import Order from '../../models/Order'; // Adjust path as needed
+// pages/api/webhook.js
+// ⚠️ IMPORTANT: Jika file Anda ada di /pages/api/webhook/xendit.js, 
+// ganti nama file atau sesuaikan path import di bawah!
 
-// It's good practice to connect once per deployment if possible,
-// but ensuring connection on each request is also safe.
-// The lib/mongoose.js utility handles caching.
-// await dbConnect(); // Can be called at the top or inside the handler
+import dbConnect from '../../lib/mongoose'; // ✅ 2 level up untuk /pages/api/webhook.js
+import Order from '../../models/Order';     // ✅ 2 level up untuk /pages/api/webhook.js
+import twilio from 'twilio';
+import dotenv from 'dotenv';
+
+dotenv.config({ path: '.env.local' });
+
+// Initialize Twilio client
+const twilioClient = twilio(
+  process.env.TWILIO_ACCOUNT_SID,
+  process.env.TWILIO_AUTH_TOKEN
+);
+
+// Helper function to send WhatsApp notification
+async function sendWhatsAppSuccessNotification(customerPhone, customerName, amount, orderNumber) {
+  try {
+    // Format phone to 62... (Indonesian international format)
+    let cleanPhone = customerPhone.replace(/\D/g, '');
+    if (cleanPhone.startsWith('0')) {
+      cleanPhone = '62' + cleanPhone.slice(1);
+    } else if (!cleanPhone.startsWith('62')) {
+      cleanPhone = '62' + cleanPhone;
+    }
+
+    console.log('📲 Preparing to send WhatsApp SUCCESS notification to:', `+${cleanPhone}`);
+
+    // Template variables for payment success
+    // Template: "Your payment with the total of {{amount}} for order {{order_number}} have successfully confirmed!"
+    const contentVariables = {
+      customer_name: customerName || 'Customer',
+      amount: `Rp ${(amount || 0).toLocaleString('id-ID')}`,
+      order_number: orderNumber,
+    };
+
+    console.log('📋 Content variables:', contentVariables);
+
+    // Send template message with SUCCESS template
+    const message = await twilioClient.messages.create({
+      from: process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+14155238886',
+      to: `whatsapp:+${cleanPhone}`,
+      contentSid: 'HXddec6d2c2c0f25b0690a443fbabcc1f2', // ✅ Payment SUCCESS template
+      contentVariables: JSON.stringify(contentVariables),
+    });
+
+    console.log('✅ WhatsApp SUCCESS notification sent!');
+    console.log('📨 Message SID:', message.sid);
+    console.log('📱 Sent to:', `+${cleanPhone}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send WhatsApp notification:', error.message);
+    console.error('❌ Twilio Error Details:', {
+      code: error.code,
+      moreInfo: error.moreInfo,
+      status: error.status,
+      details: error.detail
+    });
+    return false;
+  }
+}
 
 export default async function handler(req, res) {
   // --- 1. Basic Request Logging (for debugging) ---
@@ -13,9 +68,6 @@ export default async function handler(req, res) {
   console.log('Method:', req.method);
   console.log('URL:', req.url);
   console.log('Headers:', JSON.stringify(req.headers, null, 2));
-  // Avoid logging the raw body directly unless necessary for debugging,
-  // as it might contain sensitive information.
-  // console.log('Raw Body (stringified):', JSON.stringify(req.body, null, 2));
   console.log('=== WEBHOOK DEBUG END ===');
 
   // --- 2. Validate HTTP Method ---
@@ -30,14 +82,11 @@ export default async function handler(req, res) {
     console.log('✅ Connected to MongoDB');
   } catch (connectError) {
     console.error('💥 Error connecting to MongoDB:', connectError);
-    // If database connection fails, we cannot process the webhook correctly.
-    // Return a 500 error to indicate server issue. Xendit may retry.
     return res.status(500).json({ message: 'Internal server error - Database connection failed', error: connectError.message });
   }
 
   // --- 4. Process Webhook Data ---
   try {
-    // Xendit typically sends JSON payload
     const webhookData = req.body;
 
     // --- 4a. Validate Webhook Payload Exists ---
@@ -49,17 +98,15 @@ export default async function handler(req, res) {
     console.log('✅ Webhook data received:', JSON.stringify(webhookData, null, 2));
 
     // --- 4b. Extract Essential Fields ---
-    // Crucial fields from Xendit (names might vary slightly based on event type)
     const {
-      id,                 // Internal Xendit ID
-      external_id,        // Your order/invoice identifier (must match Order.external_id)
-      status,             // Payment status (e.g., 'PAID', 'SETTLED', 'EXPIRED')
-      paid_amount,        // Amount paid
-      paid_at,            // Timestamp of payment
-      payment_method,     // Payment method used
-      payment_channel,   // Specific channel (e.g., BCA, OVO)
-      payment_destination, // Destination account details
-      // Include any other relevant fields you want to store
+      id,
+      external_id,
+      status,
+      paid_amount,
+      paid_at,
+      payment_method,
+      payment_channel,
+      payment_destination,
     } = webhookData;
 
     // --- 4c. Validate Required Fields ---
@@ -78,28 +125,23 @@ export default async function handler(req, res) {
     // --- 5. Find Corresponding Order in Database ---
     let order = null;
     try {
-      // Find order by the external_id you sent to Xendit when creating the invoice
       order = await Order.findOne({ external_id: external_id });
     } catch (findError) {
       console.error(`💥 Error finding order with external_id ${external_id}:`, findError);
-      // Return 500 to indicate server issue, prompting Xendit to retry
       return res.status(500).json({ message: 'Internal server error - Failed to find order', error: findError.message });
     }
 
     if (!order) {
       console.warn(`❌ Order not found for external_id: ${external_id}`);
-      // List existing external_ids for debugging (optional, remove in production)
       try {
         const allOrders = await Order.find({}, 'external_id status').limit(10);
         console.log('📋 Sample of existing orders:', allOrders.map(o => ({ id: o._id, ext_id: o.external_id, status: o.status })));
       } catch (listError) {
         console.error('Error listing sample orders for debugging:', listError);
       }
-      // Return 404 - Order not found. Xendit might retry, but it's likely a misconfiguration.
       return res.status(404).json({
         message: 'Order not found for the provided external_id',
         received_external_id: external_id,
-        // hint: 'Check if external_id was correctly set when creating the Xendit invoice.'
       });
     }
 
@@ -107,66 +149,84 @@ export default async function handler(req, res) {
       _id: order._id,
       external_id: order.external_id,
       current_status: order.status,
-      amount: order.amount // Assuming you have an 'amount' field
+      amount: order.amount,
+      customer_name: order.customer_name,
+      customer_phone: order.customer_phone,
     });
 
     // --- 6. Prepare Update Data Based on Webhook Event ---
     let updateData = {
-      updated_at: new Date(), // Always update the timestamp
-      // Map Xendit's status to your internal status if needed
-      // Example: Xendit sends 'PAID', you store 'paid off'
-      status: status.toUpperCase(), // Or map based on logic below
+      updated_at: new Date(),
+      status: status.toUpperCase(),
     };
 
     // --- 6a. Handle Successful Payment ---
-    // Adjust the status check based on actual values Xendit sends (e.g., 'PAID', 'SETTLED')
     const normalizedStatus = status.toUpperCase();
     if (normalizedStatus === 'PAID' || normalizedStatus === 'SETTLED') {
       console.log(`💰 Payment successful for order: ${external_id}`);
       updateData = {
         ...updateData,
-        status: 'paid', // Your internal success status
-        paid_at: paid_at ? new Date(paid_at) : new Date(), // Parse date if provided
-        paid_amount: paid_amount !== undefined ? paid_amount : order.amount, // Use paid amount or fallback
+        status: 'paid',
+        paid_at: paid_at ? new Date(paid_at) : new Date(),
+        paid_amount: paid_amount !== undefined ? paid_amount : order.amount,
         payment_method,
         payment_channel,
         payment_destination,
-        // Add any other payment-specific fields you want to capture
       };
-    }
-    // --- 6b. Handle Other Statuses (Optional) ---
-    // You might want to handle 'EXPIRED', 'FAILED' etc.
-    else if (normalizedStatus === 'EXPIRED') {
-         updateData.status = 'expired';
-         console.log(`🕒 Payment expired for order: ${external_id}`);
-    } else if (normalizedStatus === 'FAILED') {
-         updateData.status = 'failed';
-         console.log(`❌ Payment failed for order: ${external_id}`);
-    }
-    // Add more conditions as needed
 
+      // 📲 SEND WHATSAPP SUCCESS NOTIFICATION
+      if (order.customer_phone) {
+        console.log('📲 Attempting to send WhatsApp payment success notification...');
+        try {
+          const whatsappSent = await sendWhatsAppSuccessNotification(
+            order.customer_phone,
+            order.customer_name || 'Customer',
+            paid_amount || order.amount,
+            external_id
+          );
+          
+          if (whatsappSent) {
+            updateData.whatsapp_success_sent = true;
+            updateData.whatsapp_success_sent_at = new Date();
+            console.log('✅ WhatsApp notification marked as sent in order');
+          }
+        } catch (whatsappError) {
+          console.error('❌ WhatsApp notification error:', whatsappError.message);
+          // Don't fail the webhook if WhatsApp fails
+          updateData.whatsapp_success_sent = false;
+          updateData.whatsapp_error = whatsappError.message;
+        }
+      } else {
+        console.log('⚠️ No customer phone number found for order:', external_id);
+      }
+    }
+    // --- 6b. Handle Other Statuses ---
+    else if (normalizedStatus === 'EXPIRED') {
+      updateData.status = 'expired';
+      console.log(`🕒 Payment expired for order: ${external_id}`);
+    } else if (normalizedStatus === 'FAILED') {
+      updateData.status = 'failed';
+      console.log(`❌ Payment failed for order: ${external_id}`);
+    }
 
     console.log('🔄 Preparing to update order with data:', JSON.stringify(updateData, null, 2));
 
     // --- 7. Update Order in Database ---
     let updatedOrder = null;
     try {
-      // Use findOneAndUpdate for atomicity and to get the updated document back
       updatedOrder = await Order.findOneAndUpdate(
-        { external_id: external_id }, // Filter by external_id
-        { $set: updateData },          // Apply the updates
-        { new: true, runValidators: true } // Options: return updated doc, run schema validators
+        { external_id: external_id },
+        { $set: updateData },
+        { new: true, runValidators: true }
       );
 
       if (!updatedOrder) {
-        // This case is unlikely if the order was found earlier, but good to check
         console.error('❌ Failed to update order (findOneAndUpdate returned null)');
         return res.status(500).json({ message: 'Failed to update order - Unexpected error' });
       }
 
     } catch (updateError) {
       console.error(`💥 Error updating order ${order._id} (${external_id}):`, updateError);
-      // Return 500 - Database update failed. Xendit may retry.
       return res.status(500).json({ message: 'Internal server error - Failed to update order', error: updateError.message });
     }
 
@@ -177,35 +237,31 @@ export default async function handler(req, res) {
       external_id: updatedOrder.external_id,
       status: updatedOrder.status,
       paid_amount: updatedOrder.paid_amount,
-      paid_at: updatedOrder.paid_at?.toISOString(), // Log in ISO format
-      // ... other relevant updated fields
+      paid_at: updatedOrder.paid_at?.toISOString(),
+      whatsapp_sent: updatedOrder.whatsapp_success_sent,
     });
 
     // --- 8. Send Success Response to Xendit ---
-    // It's crucial to send a 2xx response so Xendit knows the webhook was received successfully.
-    // Any non-2xx response signals Xendit to retry the webhook (based on their retry policy).
     const successResponse = {
       message: 'Webhook processed successfully',
-      order_id: updatedOrder._id.toString(), // Convert ObjectId to string
+      order_id: updatedOrder._id.toString(),
       external_id: updatedOrder.external_id,
       old_status: order.status,
       new_status: updatedOrder.status,
+      whatsapp_notification_sent: updatedOrder.whatsapp_success_sent || false,
       processed_at: new Date().toISOString(),
     };
 
     console.log('📤 Sending 200 OK response to Xendit:', successResponse);
-    res.status(200).json(successResponse); // Send JSON response
+    res.status(200).json(successResponse);
 
   } catch (error) {
     // --- 9. Global Error Handling ---
     console.error('💥 UNHANDLED WEBHOOK PROCESSING ERROR:', error);
     console.error('💥 Error stack:', error.stack);
 
-    // For unexpected errors, return a 500 to signal Xendit to retry.
-    // Include minimal error info in the response.
     res.status(500).json({
       message: 'Internal server error during webhook processing',
-      // error: error.message, // Consider omitting detailed error messages in production responses
       timestamp: new Date().toISOString(),
     });
   }

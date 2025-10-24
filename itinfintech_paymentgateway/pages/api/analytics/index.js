@@ -1,96 +1,126 @@
 // pages/api/analytics/index.js
-import dbConnect from '../../../lib/mongoose'; // Adjust path as needed
-import Order from '../../../models/Order'; // Adjust path as needed
+import dbConnect from '../../../lib/mongoose';
+import Order from '../../../models/Order';
 
 export default async function handler(req, res) {
   await dbConnect();
-
   const { method } = req;
 
   switch (method) {
     case 'GET':
       try {
+        console.log('=== ANALYTICS DEBUG START ===');
+
         // --- Summary Statistics ---
         const totalOrders = await Order.countDocuments({});
-        const pendingOrders = await Order.countDocuments({ status: 'PENDING' }); // Adjust status string if needed
-        const completedOrders = await Order.countDocuments({ status: 'PAID' }); // Adjust status string if needed
+        const pendingOrders = await Order.countDocuments({ status: 'PENDING' });
+        const completedOrders = await Order.countDocuments({ status: 'PAID' });
 
-        // Calculate total revenue from paid orders
+        console.log('Total Orders:', totalOrders);
+        console.log('Pending Orders:', pendingOrders);
+        console.log('Completed Orders:', completedOrders);
+
+        // --- Total Revenue Calculation ---
         const totalRevenueResult = await Order.aggregate([
-          { $match: { status: 'PAID', paid_at: { $exists: true } } }, // Only sum paid orders
-          { $group: { _id: null, totalRevenue: { $sum: '$paid_amount' } } } // Sum the paid_amount field
+          {
+            $match: { status: 'PAID' }
+          },
+          {
+            $addFields: {
+              paid_amount_num: {
+                $cond: {
+                  if: { $isNumber: '$paid_amount' },
+                  then: '$paid_amount',
+                  else: { $toDouble: '$paid_amount' }
+                }
+              }
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              totalRevenue: { $sum: '$paid_amount_num' }
+            }
+          }
         ]);
-        const totalRevenue = totalRevenueResult[0]?.totalRevenue || 0;
 
+        const totalRevenue = totalRevenueResult[0]?.totalRevenue || 0;
+        console.log('Total Revenue:', totalRevenue);
 
         // --- Turnover Chart Data ---
-        // Determine grouping based on query parameter or default
-        const groupBy = req.query.groupBy || 'day'; // Expect 'day' or 'month'
-        let dateFormat;
-        if (groupBy === 'month') {
-            // Group by year-month (e.g., "2023-10")
-            dateFormat = { $dateToString: { format: "%Y-%m", date: "$paid_at" } };
-        } else {
-            // Default to daily (e.g., "2023-10-27")
-            dateFormat = { $dateToString: { format: "%Y-%m-%d", date: "$paid_at" } };
-        }
+        const groupBy = req.query.groupBy || 'day';
+        const dateFormatString = groupBy === 'month' ? '%Y-%m' : '%Y-%m-%d';
 
-       const turnoverData = await Order.aggregate([
-  {
-    $match: {
-      status: 'PAID',
-      paid_at: { $exists: true, $ne: null, $type: 'date' } // Only valid dates
-    }
-  },
-  {
-    $addFields: {
-      // Ensure paid_at is a valid date (fallback to created_at if needed)
-      effectiveDate: {
-        $cond: {
-          if: { $eq: [{ $type: "$paid_at" }, "date"] },
-          then: "$paid_at",
-          else: "$created_at"
-        }
-      }
-    }
-  },
-  {
-    $match: {
-      effectiveDate: { $exists: true, $ne: null }
-    }
-  },
-  {
-    $group: {
-      _id: dateFormat, // Your existing dateFormat logic using "$effectiveDate"
-      totalAmount: { $sum: '$paid_amount' }
-    }
-  },
-  { $sort: { _id: 1 } }
-]);
+        // Fix: Normalize date field (convert string to date if needed)
+        const turnoverData = await Order.aggregate([
+          {
+            $match: {
+              status: 'PAID'
+            }
+          },
+          {
+            $addFields: {
+              effectiveDate: {
+                $cond: [
+                  { $eq: [{ $type: '$paid_at' }, 'date'] },
+                  '$paid_at',
+                  {
+                    $cond: [
+                      { $eq: [{ $type: '$paid_at' }, 'string'] },
+                      { $toDate: '$paid_at' },
+                      '$created_at'
+                    ]
+                  }
+                ]
+              },
+              paid_amount_num: {
+                $cond: {
+                  if: { $isNumber: '$paid_amount' },
+                  then: '$paid_amount',
+                  else: { $toDouble: '$paid_amount' }
+                }
+              }
+            }
+          },
+          {
+            $match: {
+              effectiveDate: { $exists: true, $ne: null }
+            }
+          },
+          {
+            $group: {
+              _id: { $dateToString: { format: dateFormatString, date: '$effectiveDate' } },
+              totalAmount: { $sum: '$paid_amount_num' }
+            }
+          },
+          { $sort: { _id: 1 } }
+        ]);
 
-        // Format turnover data for the frontend
+        console.log('Raw Turnover Data:', turnoverData);
+
         const formattedTurnoverData = turnoverData.map(item => ({
-          date: item._id, // This will be "YYYY-MM-DD" or "YYYY-MM"
-          amount: item.totalAmount
+          date: item._id,
+          amount: item.totalAmount || 0
         }));
 
-        // Send the aggregated data back to the frontend
+        console.log('Formatted Turnover Data:', formattedTurnoverData);
+        console.log('=== ANALYTICS DEBUG END ===');
+
         res.status(200).json({
           summary: {
             totalOrders,
             pendingOrders,
             completedOrders,
             totalRevenue
-            // You can add more summary stats here if needed
           },
           turnover: formattedTurnoverData
         });
-
       } catch (error) {
         console.error('Error fetching analytics data:', error);
         res.status(500).json({ message: 'Failed to fetch analytics data', error: error.message });
       }
       break;
+
     default:
       res.setHeader('Allow', ['GET']);
       res.status(405).end(`Method ${method} Not Allowed`);

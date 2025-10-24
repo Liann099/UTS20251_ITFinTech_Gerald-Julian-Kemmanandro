@@ -48,7 +48,6 @@ const orderSchema = new mongoose.Schema({
   },
   customer_phone: {
     type: String,
-    required: false,
   },
   shipping_address: {
     country: String,
