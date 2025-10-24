@@ -125,13 +125,12 @@ export default async function handler(req, res) {
       console.log(`💰 Payment successful for order: ${external_id}`);
       updateData = {
         ...updateData,
-        status: 'paid off', // Your internal success status
+        status: 'paid', // Your internal success status
         paid_at: paid_at ? new Date(paid_at) : new Date(), // Parse date if provided
         paid_amount: paid_amount !== undefined ? paid_amount : order.amount, // Use paid amount or fallback
-        payment_method: payment_method || null,
-        payment_channel: payment_channel || null,
-        payment_destination: payment_destination || null,
-        enum: ['PENDING', 'pending', 'PAID','paid', 'EXPIRED', 'CANCELLED']
+        payment_method,
+        payment_channel,
+        payment_destination,
         // Add any other payment-specific fields you want to capture
       };
     }
