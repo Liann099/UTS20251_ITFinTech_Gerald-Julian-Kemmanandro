@@ -2,8 +2,7 @@ import mongoose from "mongoose";
 import Product from "./models/Product.js";
 import dotenv from "dotenv";
 
-dotenv.config({ path: ".env.local" }); // 👈 tambahin path .env.local
-
+dotenv.config({ path: ".env.local" });
 const MONGODB_URI = process.env.MONGODB_URI;
 
 async function seed() {

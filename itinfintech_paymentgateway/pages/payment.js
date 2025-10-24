@@ -6,10 +6,7 @@ import { useRouter } from 'next/router';
 export default function Payment() {
   const [cart, setCart] = useState([]);
   const [paymentMethod, setPaymentMethod] = useState('Credit/Debit Card');
-  const [email, setEmail] = useState('');
   const [shippingAddress, setShippingAddress] = useState({
-    firstName: '',
-    lastName: '',
     country: '',
     address: '',
     town: '',
@@ -17,6 +14,8 @@ export default function Payment() {
     postcode: ''
   });
   const [isShippingValid, setIsShippingValid] = useState(false);
+  const [userEmail, setUserEmail] = useState('');
+  const [userName, setUserName] = useState('');
   const router = useRouter();
 
   useEffect(() => {
@@ -24,24 +23,55 @@ export default function Payment() {
     if (savedCart) {
       setCart(JSON.parse(savedCart));
     }
-  }, []);
 
-  const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const shipping = 0; // Changed to Free
+    // ✅ Load user data from localStorage
+    const userData = localStorage.getItem('userData');
+    if (userData) {
+      try {
+        const parsed = JSON.parse(userData);
+        setUserEmail(parsed.email || '');
+        setUserName(parsed.name || '');
+      } catch (e) {
+        console.warn('Failed to parse user data');
+        alert('User session invalid. Please log in again.');
+        router.push('/login');
+      }
+    } else {
+      alert('Please log in to proceed with payment.');
+      router.push('/login');
+    }
+  }, [router]);
+
+  const subtotal = cart.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
+  const shipping = 10000;
   const total = subtotal + shipping;
 
   const handlePayment = async () => {
-    if (!email.includes('@') || !isShippingValid) {
-      alert('Please enter a valid email and complete the shipping address.');
+    if (!isShippingValid) {
+      alert('Please complete the shipping address.');
+      return;
+    }
+
+    if (!userEmail) {
+      alert('User email not found. Please log in again.');
       return;
     }
 
     alert('Connecting to payment gateway...');
 
     const orderDetails = {
-      items: cart,
+      items: cart.map(item => ({
+        _id: item._id,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity || 1,
+        imageUrl: item.imageUrl
+      })),
       total: total,
+      customer_email: userEmail,
+      customer_name: userName || 'Customer',
     };
+
     try {
       const response = await fetch('/api/create-payment', {
         method: 'POST',
@@ -63,8 +93,8 @@ export default function Payment() {
   };
 
   const validateShipping = () => {
-    const { firstName, country, address, town, state, postcode } = shippingAddress;
-    const isValid = firstName && country && address && town && state && postcode;
+    const { country, address, town, state, postcode } = shippingAddress;
+    const isValid = country && address && town && state && postcode;
     setIsShippingValid(isValid);
   };
 
@@ -82,214 +112,332 @@ export default function Payment() {
   };
 
   return (
-    <div style={{ fontFamily: 'sans-serif', padding: '20px', backgroundColor: '#f9f9f9', color: '#333', maxWidth: '1200px', margin: '0 auto' }}>
+    <div style={{ 
+      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", 
+      padding: '20px', 
+      backgroundColor: '#fafafa', 
+      color: '#333', 
+      minHeight: '100vh',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'flex-start',
+      boxSizing: 'border-box'
+    }}>
       <Head>
         <title>Secure Payment</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
       </Head>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <button onClick={() => router.back()} style={{ fontSize: '24px', fontWeight: 'bold', color: '#333' }}>&lt; Back</button>
-        <h1 style={{ fontSize: '48px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '2px', color: '#333' }}>PAYMENT</h1>
-        <div style={{ color: '#888' }}>
-          <div style={{ borderBottom: '1px solid #333', paddingBottom: '5px', marginBottom: '5px', color: isShippingValid ? '#333' : '#ff4444' }}>Shipping Information</div>
-          <div>Payment</div>
-        </div>
-      </header>
-      <div style={{ display: 'flex', gap: '40px' }}>
-        <div style={{ flex: 1, backgroundColor: '#fff', padding: '20px', borderRadius: '10px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
-          <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '20px', textTransform: 'uppercase' }}>CONTACT</h2>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Your email address"
-            style={{ width: '100%', padding: '10px', marginBottom: '20px', border: '1px solid #ddd', borderRadius: '20px', backgroundColor: '#fff', color: '#333' }}
-          />
-          <label>
-            <input type="checkbox" style={{ marginRight: '5px' }} /> Remember me
-          </label>
-
-          <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginTop: '20px', marginBottom: '20px', textTransform: 'uppercase' }}>DELIVERY ADDRESS</h2>
-          <div style={{ display: 'grid', gap: '15px' }}>
-            <div style={{ display: 'flex', gap: '15px' }}>
-              <input
-                type="text"
-                value={shippingAddress.firstName}
-                onChange={(e) => handleAddressChange('firstName', e.target.value)}
-                placeholder="First Name"
-                style={{ flex: 1, padding: '10px', border: '1px solid #ddd', borderRadius: '20px', backgroundColor: '#fff', color: '#333' }}
-              />
-              <input
-                type="text"
-                value={shippingAddress.lastName}
-                onChange={(e) => handleAddressChange('lastName', e.target.value)}
-                placeholder="Last Name"
-                style={{ flex: 1, padding: '10px', border: '1px solid #ddd', borderRadius: '20px', backgroundColor: '#fff', color: '#333' }}
-              />
+      
+      <div style={{ maxWidth: '1200px', width: '100%', boxSizing: 'border-box' }}>
+        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
+          <button 
+            onClick={() => router.back()} 
+            style={{ 
+              padding: '12px 24px', 
+              backgroundColor: '#fff', 
+              border: '2px solid #e0e0e0', 
+              borderRadius: '12px', 
+              cursor: 'pointer', 
+              fontWeight: '600', 
+              fontSize: '14px',
+              transition: 'all 0.3s ease',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+            onMouseOver={(e) => {
+              e.target.style.borderColor = '#667eea';
+              e.target.style.transform = 'translateX(-4px)';
+            }}
+            onMouseOut={(e) => {
+              e.target.style.borderColor = '#e0e0e0';
+              e.target.style.transform = 'translateX(0)';
+            }}
+          >← Back</button>
+          <h1 style={{ fontSize: '40px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '2px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>PAYMENT</h1>
+          <div style={{ color: '#888', fontSize: '14px', textAlign: 'right' }}>
+            <div style={{ borderBottom: '2px solid #667eea', paddingBottom: '8px', marginBottom: '8px', color: isShippingValid ? '#10b981' : '#ff4757', fontWeight: '600', transition: 'all 0.3s ease' }}>
+              {isShippingValid ? '✓' : '○'} Shipping Information
             </div>
-            <input
-              type="text"
-              value={shippingAddress.country}
-              onChange={(e) => handleAddressChange('country', e.target.value)}
-              placeholder="Country"
-              style={{ width: '100%', padding: '10px', marginBottom: '15px', border: '1px solid #ddd', borderRadius: '20px', backgroundColor: '#fff', color: '#333' }}
-            />
-            <input
-              type="text"
-              value={shippingAddress.address}
-              onChange={(e) => handleAddressChange('address', e.target.value)}
-              placeholder="Address"
-              style={{ width: '100%', padding: '10px', marginBottom: '15px', border: '1px solid #ddd', borderRadius: '20px', backgroundColor: '#fff', color: '#333' }}
-            />
-            <div style={{ display: 'flex', gap: '15px' }}>
-              <input
-                type="text"
-                value={shippingAddress.town}
-                onChange={(e) => handleAddressChange('town', e.target.value)}
-                placeholder="Town"
-                style={{ flex: 1, padding: '10px', border: '1px solid #ddd', borderRadius: '20px', backgroundColor: '#fff', color: '#333' }}
-              />
-              <input
-                type="text"
-                value={shippingAddress.state}
-                onChange={(e) => handleAddressChange('state', e.target.value)}
-                placeholder="State"
-                style={{ flex: 1, padding: '10px', border: '1px solid #ddd', borderRadius: '20px', backgroundColor: '#fff', color: '#333' }}
-              />
-              <input
-                type="text"
-                value={shippingAddress.postcode}
-                onChange={(e) => handleAddressChange('postcode', e.target.value)}
-                placeholder="Postcode/ZIP"
-                style={{ flex: 1, padding: '10px', border: '1px solid #ddd', borderRadius: '20px', backgroundColor: '#fff', color: '#333' }}
-              />
-            </div>
+            <div style={{ fontWeight: '600', color: '#667eea' }}>○ Payment</div>
           </div>
+        </header>
+        
+        <div style={{ display: 'flex', gap: '30px' }}>
+          <div style={{ flex: 1, backgroundColor: '#fff', padding: '32px', borderRadius: '24px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: '700', marginTop: '0', marginBottom: '20px', textTransform: 'uppercase', color: '#222', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              🏠 DELIVERY ADDRESS
+            </h2>
+            <div style={{ display: 'grid', gap: '16px' }}>
+              <input
+                type="text"
+                value={shippingAddress.country}
+                onChange={(e) => handleAddressChange('country', e.target.value)}
+                placeholder="Country *"
+                style={{ width: '100%', padding: '14px 20px', marginBottom: '0', border: '2px solid #e0e0e0', borderRadius: '12px', backgroundColor: '#fff', color: '#333', fontSize: '15px', transition: 'all 0.3s ease', outline: 'none' }}
+                onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
+              />
+              <input
+                type="text"
+                value={shippingAddress.address}
+                onChange={(e) => handleAddressChange('address', e.target.value)}
+                placeholder="Street Address *"
+                style={{ width: '100%', padding: '14px 20px', marginBottom: '0', border: '2px solid #e0e0e0', borderRadius: '12px', backgroundColor: '#fff', color: '#333', fontSize: '15px', transition: 'all 0.3s ease', outline: 'none' }}
+                onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
+              />
+              <div style={{ display: 'flex', gap: '16px' }}>
+                <input
+                  type="text"
+                  value={shippingAddress.town}
+                  onChange={(e) => handleAddressChange('town', e.target.value)}
+                  placeholder="Town/City *"
+                  style={{ flex: 1, padding: '14px 20px', border: '2px solid #e0e0e0', borderRadius: '12px', backgroundColor: '#fff', color: '#333', fontSize: '15px', transition: 'all 0.3s ease', outline: 'none' }}
+                  onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                  onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
+                />
+                <input
+                  type="text"
+                  value={shippingAddress.state}
+                  onChange={(e) => handleAddressChange('state', e.target.value)}
+                  placeholder="State/Province *"
+                  style={{ flex: 1, padding: '14px 20px', border: '2px solid #e0e0e0', borderRadius: '12px', backgroundColor: '#fff', color: '#333', fontSize: '15px', transition: 'all 0.3s ease', outline: 'none' }}
+                  onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                  onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
+                />
+                <input
+                  type="text"
+                  value={shippingAddress.postcode}
+                  onChange={(e) => handleAddressChange('postcode', e.target.value)}
+                  placeholder="Postcode/ZIP *"
+                  style={{ flex: 1, padding: '14px 20px', border: '2px solid #e0e0e0', borderRadius: '12px', backgroundColor: '#fff', color: '#333', fontSize: '15px', transition: 'all 0.3s ease', outline: 'none' }}
+                  onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                  onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
+                />
+              </div>
+            </div>
 
-          <div style={{ marginTop: '30px' }}>
-            <h4 style={{ fontSize: '18px', fontWeight: 'bold' }}>Payment Method</h4>
-            <div style={{ marginBottom: '10px' }}>
-              <div
-                onClick={() => setPaymentMethod('Credit/Debit Card')}
-                style={{
-                  display: 'flex', alignItems: 'center', padding: '10px', backgroundColor: '#f1f1f1', border: '1px solid #ddd', borderRadius: '5px', cursor: 'pointer'
-                }}
-              >
-                <input type="radio" id="card" name="payment" value="Credit/Debit Card" checked={paymentMethod === 'Credit/Debit Card'} onChange={(e) => setPaymentMethod(e.target.value)} style={{ marginRight: '10px' }} />
-                <img src="https://via.placeholder.com/30x20?text=Visa" alt="Visa" style={{ marginRight: '10px' }} />
-                <img src="https://via.placeholder.com/30x20?text=Amex" alt="Amex" />
-                <label htmlFor="card" style={{ marginLeft: '10px', color: '#333' }}>Credit/Debit Card</label>
-              </div>
-            </div>
-            <div style={{ marginBottom: '10px' }}>
-              <div
-                onClick={() => setPaymentMethod('PayPal')}
-                style={{
-                  display: 'flex', alignItems: 'center', padding: '10px', backgroundColor: '#f1f1f1', border: '1px solid #ddd', borderRadius: '5px', cursor: 'pointer'
-                }}
-              >
-                <input type="radio" id="paypal" name="payment" value="PayPal" checked={paymentMethod === 'PayPal'} onChange={(e) => setPaymentMethod(e.target.value)} style={{ marginRight: '10px' }} />
-                <img src="https://via.placeholder.com/30x20?text=PayPal" alt="PayPal" />
-                <label htmlFor="paypal" style={{ marginLeft: '10px', color: '#333' }}>PayPal</label>
-              </div>
-            </div>
-            <div>
-              <div
-                onClick={() => setPaymentMethod('Other')}
-                style={{
-                  display: 'flex', alignItems: 'center', padding: '10px', backgroundColor: '#f1f1f1', border: '1px solid #ddd', borderRadius: '5px', cursor: 'pointer'
-                }}
-              >
-                <input type="radio" id="other" name="payment" value="Other" checked={paymentMethod === 'Other'} onChange={(e) => setPaymentMethod(e.target.value)} style={{ marginRight: '10px' }} />
-                <img src="https://via.placeholder.com/30x20?text=Other" alt="Other" />
-                <label htmlFor="other" style={{ marginLeft: '10px', color: '#333' }}>Other (e.g., E-Wallet, Bank Transfer)</label>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div style={{ width: '300px', backgroundColor: '#fff', padding: '20px', borderRadius: '10px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
-          <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '20px', textTransform: 'uppercase' }}>DETAIL PRODUCT</h2>
-          <div>
-            {cart.length <= 2 ? (
-              cart.map(item => (
-                <div key={item._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', padding: '10px', backgroundColor: '#f1f1f1', borderRadius: '5px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <img 
-                      src={item.imageUrl || 'https://via.placeholder.com/50x75'} 
-                      alt={item.name} 
-                      style={{ width: '50px', height: '75px', objectFit: 'contain', marginRight: '10px' }} 
-                    />
-                    <div>
-                      <p style={{ fontSize: '14px', margin: '0', color: '#333' }}>{item.name}</p>
-                      <p style={{ fontSize: '12px', color: '#888' }}>1x Rp.{item.price.toFixed(2)}</p>
-                    </div>
+            <div style={{ marginTop: '32px' }}>
+              <h4 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '20px', color: '#222', display: 'flex', alignItems: 'center', gap: '10px' }}>💳 Payment Method</h4>
+              <div style={{ marginBottom: '12px' }}>
+                <div
+                  onClick={() => setPaymentMethod('Credit/Debit Card')}
+                  style={{
+                    display: 'flex', alignItems: 'center', padding: '16px 20px', backgroundColor: paymentMethod === 'Credit/Debit Card' ? '#f5f5ff' : '#fafafa', border: paymentMethod === 'Credit/Debit Card' ? '2px solid #667eea' : '2px solid #e0e0e0', borderRadius: '12px', cursor: 'pointer', transition: 'all 0.3s ease'
+                  }}
+                  onMouseOver={(e) => {
+                    if (paymentMethod !== 'Credit/Debit Card') {
+                      e.currentTarget.style.borderColor = '#667eea';
+                      e.currentTarget.style.backgroundColor = '#f9f9f9';
+                    }
+                  }}
+                  onMouseOut={(e) => {
+                    if (paymentMethod !== 'Credit/Debit Card') {
+                      e.currentTarget.style.borderColor = '#e0e0e0';
+                      e.currentTarget.style.backgroundColor = '#fafafa';
+                    }
+                  }}
+                >
+                  <input type="radio" id="card" name="payment" value="Credit/Debit Card" checked={paymentMethod === 'Credit/Debit Card'} onChange={(e) => setPaymentMethod(e.target.value)} style={{ marginRight: '12px', width: '18px', height: '18px', cursor: 'pointer' }} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: '12px' }}>
+                    <div style={{ width: '40px', height: '28px', backgroundColor: '#fff', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: '700', color: '#1434CB', border: '1px solid #e0e0e0' }}>VISA</div>
+                    <div style={{ width: '40px', height: '28px', backgroundColor: '#fff', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: '700', color: '#016FD0', border: '1px solid #e0e0e0' }}>AMEX</div>
                   </div>
-                  <p style={{ fontWeight: 'bold', color: '#333' }}>Rp.{(item.price * (item.quantity || 1)).toFixed(2)}</p>
+                  <label htmlFor="card" style={{ marginLeft: '0', color: '#333', fontWeight: '600', fontSize: '15px', cursor: 'pointer' }}>Credit/Debit Card</label>
                 </div>
-              ))
-            ) : (
-              <>
-                {cart.slice(0, 2).map(item => (
-                  <div key={item._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', padding: '10px', backgroundColor: '#f1f1f1', borderRadius: '5px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                      <img 
-                        src={item.imageUrl || 'https://via.placeholder.com/50x75'} 
-                        alt={item.name} 
-                        style={{ width: '50px', height: '75px', objectFit: 'contain', marginRight: '10px' }} 
-                      />
+              </div>
+              <div style={{ marginBottom: '12px' }}>
+                <div
+                  onClick={() => setPaymentMethod('PayPal')}
+                  style={{
+                    display: 'flex', alignItems: 'center', padding: '16px 20px', backgroundColor: paymentMethod === 'PayPal' ? '#f5f5ff' : '#fafafa', border: paymentMethod === 'PayPal' ? '2px solid #667eea' : '2px solid #e0e0e0', borderRadius: '12px', cursor: 'pointer', transition: 'all 0.3s ease'
+                  }}
+                  onMouseOver={(e) => {
+                    if (paymentMethod !== 'PayPal') {
+                      e.currentTarget.style.borderColor = '#667eea';
+                      e.currentTarget.style.backgroundColor = '#f9f9f9';
+                    }
+                  }}
+                  onMouseOut={(e) => {
+                    if (paymentMethod !== 'PayPal') {
+                      e.currentTarget.style.borderColor = '#e0e0e0';
+                      e.currentTarget.style.backgroundColor = '#fafafa';
+                    }
+                  }}
+                >
+                  <input type="radio" id="paypal" name="payment" value="PayPal" checked={paymentMethod === 'PayPal'} onChange={(e) => setPaymentMethod(e.target.value)} style={{ marginRight: '12px', width: '18px', height: '18px', cursor: 'pointer' }} />
+                  <div style={{ width: '40px', height: '28px', backgroundColor: '#fff', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: '700', color: '#003087', border: '1px solid #e0e0e0', marginRight: '12px' }}>PayPal</div>
+                  <label htmlFor="paypal" style={{ marginLeft: '0', color: '#333', fontWeight: '600', fontSize: '15px', cursor: 'pointer' }}>PayPal</label>
+                </div>
+              </div>
+              <div>
+                <div
+                  onClick={() => setPaymentMethod('Other')}
+                  style={{
+                    display: 'flex', alignItems: 'center', padding: '16px 20px', backgroundColor: paymentMethod === 'Other' ? '#f5f5ff' : '#fafafa', border: paymentMethod === 'Other' ? '2px solid #667eea' : '2px solid #e0e0e0', borderRadius: '12px', cursor: 'pointer', transition: 'all 0.3s ease'
+                  }}
+                  onMouseOver={(e) => {
+                    if (paymentMethod !== 'Other') {
+                      e.currentTarget.style.borderColor = '#667eea';
+                      e.currentTarget.style.backgroundColor = '#f9f9f9';
+                    }
+                  }}
+                  onMouseOut={(e) => {
+                    if (paymentMethod !== 'Other') {
+                      e.currentTarget.style.borderColor = '#e0e0e0';
+                      e.currentTarget.style.backgroundColor = '#fafafa';
+                    }
+                  }}
+                >
+                  <input type="radio" id="other" name="payment" value="Other" checked={paymentMethod === 'Other'} onChange={(e) => setPaymentMethod(e.target.value)} style={{ marginRight: '12px', width: '18px', height: '18px', cursor: 'pointer' }} />
+                  <div style={{ width: '40px', height: '28px', backgroundColor: '#fff', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', border: '1px solid #e0e0e0', marginRight: '12px' }}>💰</div>
+                  <label htmlFor="other" style={{ marginLeft: '0', color: '#333', fontWeight: '600', fontSize: '15px', cursor: 'pointer' }}>Other (E-Wallet, Bank Transfer)</label>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Order Summary */}
+          <div style={{ width: '380px', backgroundColor: '#fff', padding: '32px', borderRadius: '24px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', height: 'fit-content', position: 'sticky', top: '20px' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '20px', textTransform: 'uppercase', color: '#222' }}>📦 DETAIL PRODUCT</h2>
+            <div style={{ maxHeight: '320px', overflowY: 'auto', marginBottom: '20px' }}>
+              {cart.length <= 2 ? (
+                cart.map(item => (
+                  <div key={item._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', padding: '16px', backgroundColor: '#fafafa', borderRadius: '12px', border: '1px solid #f0f0f0' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                      <div style={{ backgroundColor: '#fff', borderRadius: '8px', padding: '8px', marginRight: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.04)' }}>
+                        <img 
+                          src={item.imageUrl} 
+                          alt={item.name} 
+                          style={{ width: '50px', height: '75px', objectFit: 'contain' }} 
+                        />
+                      </div>
                       <div>
-                        <p style={{ fontSize: '14px', margin: '0', color: '#333' }}>{item.name}</p>
-                        <p style={{ fontSize: '12px', color: '#888' }}>1x Rp.{item.price.toFixed(2)}</p>
+                        <p style={{ fontSize: '14px', margin: '0 0 6px 0', color: '#333', fontWeight: '600' }}>{item.name}</p>
+                        <p style={{ fontSize: '12px', color: '#888' }}>{item.quantity || 1}x <span style={{ color: '#667eea', fontWeight: '600' }}>Rp.{item.price.toLocaleString()}</span></p>
                       </div>
                     </div>
-                    <p style={{ fontWeight: 'bold', color: '#333' }}>Rp.{(item.price * (item.quantity || 1)).toFixed(2)}</p>
+                    <p style={{ fontWeight: '700', color: '#667eea', fontSize: '15px' }}>Rp.{((item.price * (item.quantity || 1))).toLocaleString()}</p>
                   </div>
-                ))}
-                <div>
-                  <button onClick={toggleProductDetails} style={{ width: '100%', padding: '10px', backgroundColor: '#f1f1f1', border: '1px solid #ddd', borderRadius: '5px', color: '#333', marginBottom: '15px' }}>
-                    View {cart.length - 2} more items...
-                  </button>
-                  <div style={{ display: 'none' }}>
-                    {cart.slice(2).map(item => (
-                      <div key={item._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', padding: '10px', backgroundColor: '#f1f1f1', borderRadius: '5px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                ))
+              ) : (
+                <>
+                  {cart.slice(0, 2).map(item => (
+                    <div key={item._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', padding: '16px', backgroundColor: '#fafafa', borderRadius: '12px', border: '1px solid #f0f0f0' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                        <div style={{ backgroundColor: '#fff', borderRadius: '8px', padding: '8px', marginRight: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.04)' }}>
                           <img 
-                            src={item.imageUrl || 'https://via.placeholder.com/50x75'} 
+                            src={item.imageUrl} 
                             alt={item.name} 
-                            style={{ width: '50px', height: '75px', objectFit: 'contain', marginRight: '10px' }} 
+                            style={{ width: '50px', height: '75px', objectFit: 'contain' }} 
                           />
-                          <div>
-                            <p style={{ fontSize: '14px', margin: '0', color: '#333' }}>{item.name}</p>
-                            <p style={{ fontSize: '12px', color: '#888' }}>1x Rp.{item.price.toFixed(2)}</p>
-                          </div>
                         </div>
-                        <p style={{ fontWeight: 'bold', color: '#333' }}>Rp.{(item.price * (item.quantity || 1)).toFixed(2)}</p>
+                        <div>
+                          <p style={{ fontSize: '14px', margin: '0 0 6px 0', color: '#333', fontWeight: '600' }}>{item.name}</p>
+                          <p style={{ fontSize: '12px', color: '#888' }}>{item.quantity || 1}x <span style={{ color: '#667eea', fontWeight: '600' }}>Rp.{item.price.toLocaleString()}</span></p>
+                        </div>
                       </div>
-                    ))}
+                      <p style={{ fontWeight: '700', color: '#667eea', fontSize: '15px' }}>Rp.{((item.price * (item.quantity || 1))).toLocaleString()}</p>
+                    </div>
+                  ))}
+                  <div>
+                    <button 
+                      onClick={toggleProductDetails} 
+                      style={{ 
+                        width: '100%', 
+                        padding: '12px', 
+                        backgroundColor: '#f5f5ff', 
+                        border: '2px solid #e0e0e0', 
+                        borderRadius: '12px', 
+                        color: '#667eea', 
+                        marginBottom: '16px', 
+                        cursor: 'pointer', 
+                        fontWeight: '600',
+                        fontSize: '14px',
+                        transition: 'all 0.3s ease'
+                      }}
+                      onMouseOver={(e) => {
+                        e.target.style.backgroundColor = '#667eea';
+                        e.target.style.color = '#fff';
+                        e.target.style.borderColor = '#667eea';
+                      }}
+                      onMouseOut={(e) => {
+                        e.target.style.backgroundColor = '#f5f5ff';
+                        e.target.style.color = '#667eea';
+                        e.target.style.borderColor = '#e0e0e0';
+                      }}
+                    >
+                      View {cart.length - 2} more items ▼
+                    </button>
+                    <div style={{ display: 'none' }}>
+                      {cart.slice(2).map(item => (
+                        <div key={item._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', padding: '16px', backgroundColor: '#fafafa', borderRadius: '12px', border: '1px solid #f0f0f0' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                            <div style={{ backgroundColor: '#fff', borderRadius: '8px', padding: '8px', marginRight: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.04)' }}>
+                              <img 
+                                src={item.imageUrl} 
+                                alt={item.name} 
+                                style={{ width: '50px', height: '75px', objectFit: 'contain' }} 
+                              />
+                            </div>
+                            <div>
+                              <p style={{ fontSize: '14px', margin: '0 0 6px 0', color: '#333', fontWeight: '600' }}>{item.name}</p>
+                              <p style={{ fontSize: '12px', color: '#888' }}>{item.quantity || 1}x <span style={{ color: '#667eea', fontWeight: '600' }}>Rp.{item.price.toLocaleString()}</span></p>
+                            </div>
+                          </div>
+                          <p style={{ fontWeight: '700', color: '#667eea', fontSize: '15px' }}>Rp.{((item.price * (item.quantity || 1))).toLocaleString()}</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              </>
-            )}
+                </>
+              )}
+            </div>
+            <div style={{ marginTop: '24px', borderTop: '2px solid #f0f0f0', paddingTop: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <p style={{ fontWeight: '600', textTransform: 'uppercase', color: '#666', fontSize: '14px' }}>SUB TOTAL</p>
+                <p style={{ fontWeight: '700', color: '#333', fontSize: '15px' }}>Rp.{subtotal.toLocaleString()}</p>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', backgroundColor: '#f0f9ff', padding: '10px 12px', borderRadius: '8px', border: '2px dashed #bfdbfe' }}>
+                <p style={{ fontWeight: '600', textTransform: 'uppercase', color: '#666', fontSize: '14px' }}>🚚 SHIPPING</p>
+                <p style={{ fontWeight: '700', color: '#10b981', fontSize: '14px' }}>Free</p>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px', paddingTop: '12px', borderTop: '2px dashed #e0e0e0' }}>
+                <p style={{ fontWeight: '700', textTransform: 'uppercase', color: '#222', fontSize: '16px' }}>TOTAL</p>
+                <p style={{ fontWeight: '700', fontSize: '20px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Rp.{total.toLocaleString()}</p>
+              </div>
+            </div>
+            <button
+              onClick={handlePayment}
+              style={{ 
+                width: '100%', 
+                padding: '16px', 
+                marginTop: '8px', 
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
+                color: '#fff', 
+                border: 'none', 
+                borderRadius: '16px', 
+                fontSize: '16px', 
+                fontWeight: '700',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)'
+              }}
+              onMouseOver={(e) => {
+                e.target.style.transform = 'translateY(-2px)';
+                e.target.style.boxShadow = '0 6px 20px rgba(102, 126, 234, 0.5)';
+              }}
+              onMouseOut={(e) => {
+                e.target.style.transform = 'translateY(0)';
+                e.target.style.boxShadow = '0 4px 15px rgba(102, 126, 234, 0.4)';
+              }}
+            >
+              Confirm & Pay 
+            </button>
+            <p style={{ textAlign: 'center', fontSize: '12px', color: '#999', marginTop: '16px' }}>🔒 Secure payment powered by DAIKO</p>
           </div>
-          <div style={{ marginTop: '20px', borderTop: '1px solid #ddd', paddingTop: '10px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-              <p style={{ fontWeight: 'bold', textTransform: 'uppercase', color: '#333' }}>SUB TOTAL</p>
-              <p style={{ fontWeight: 'bold', color: '#333' }}>Rp.{subtotal.toFixed(2)}</p>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-              <p style={{ fontWeight: 'bold', textTransform: 'uppercase', color: '#333' }}>SHIPPING</p>
-              <p>Free</p>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-              <p style={{ fontWeight: 'bold', textTransform: 'uppercase', color: '#333' }}>TOTAL</p>
-              <p style={{ fontWeight: 'bold', color: '#333' }}>Rp.{total.toFixed(2)}</p>
-            </div>
-          </div>
-          <button
-            onClick={handlePayment}
-            style={{ width: '100%', padding: '15px', marginTop: '20px', backgroundColor: '#ff4444', color: '#fff', border: 'none', borderRadius: '5px', fontSize: '1em', fontWeight: 'bold' }}
-          >
-            Confirm & Pay
-          </button>
         </div>
       </div>
     </div>
