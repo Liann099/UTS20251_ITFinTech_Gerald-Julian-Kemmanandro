@@ -264,6 +264,17 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleEditImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setEditingProduct(prev => ({ ...prev, imageUrl: reader.result }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const startEditing = (product) => {
     setEditingProduct({ ...product });
   };
@@ -613,7 +624,7 @@ export default function AdminDashboard() {
                     { label: 'Product Name', type: 'text', value: editingProduct ? editingProduct.name : newProduct.name, onChange: (e) => editingProduct ? setEditingProduct({ ...editingProduct, name: e.target.value }) : setNewProduct({ ...newProduct, name: e.target.value }), icon: '📦' },
                     { label: 'Price', type: 'number', value: editingProduct ? editingProduct.price : newProduct.price, onChange: (e) => editingProduct ? setEditingProduct({ ...editingProduct, price: e.target.value }) : setNewProduct({ ...newProduct, price: e.target.value }), icon: '💰' },
                     { label: 'Category', type: 'select', value: editingProduct ? editingProduct.category : newProduct.category, onChange: (e) => editingProduct ? setEditingProduct({ ...editingProduct, category: e.target.value }) : setNewProduct({ ...newProduct, category: e.target.value }), icon: '🏷️' },
-                    { label: 'Image', type: 'file', value: '', onChange: handleImageChange, icon: '🖼️' }
+                    { label: 'Image', type: 'file', value: '', onChange: editingProduct ? handleEditImageChange : handleImageChange, icon: '🖼️' }
                   ].map((field, index) => (
                     <div key={index}>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', fontWeight: '600', color: '#374151', fontSize: '14px' }}>

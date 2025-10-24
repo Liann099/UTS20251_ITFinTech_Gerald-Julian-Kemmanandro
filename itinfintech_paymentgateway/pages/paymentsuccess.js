@@ -90,7 +90,7 @@ export default function PaymentSuccess() {
         )}
         {error && <p style={{ color: '#e53e3e', marginBottom: '20px' }}>{error}</p>}
         <button
-          onClick={() => router.push('/')} // Redirect to homepage or dashboard
+          onClick={() => router.push('/landingcustomer')} // Redirect to homepage or dashboard
           style={{
             fontSize: '16px',
             padding: '16px 32px',

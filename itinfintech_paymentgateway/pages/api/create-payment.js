@@ -3,7 +3,7 @@ import { Xendit } from 'xendit-node';
 import dbConnect from '../../lib/mongoose';
 import Order from '../../models/Order';
 import dotenv from 'dotenv';
-import client from '../../lib/twilio.js';
+import { sendWhatsAppVerification } from '../../lib/twilio.js'; // ✅ use helper instead of raw client
 
 dotenv.config({ path: '.env.local' });
 
@@ -34,7 +34,6 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Valid customer email is required' });
   }
 
-  // Email validation regex
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(customer_email)) {
     console.error('❌ Invalid email format:', customer_email);
@@ -57,32 +56,28 @@ export default async function handler(req, res) {
       customer_name: customer_name || 'Customer',
     });
 
-    // ✅ Proper Xendit Invoice structure
     const invoiceData = {
-      externalId: externalId, // Note: camelCase for SDK
+      externalId: externalId,
       amount: Math.round(total),
-      payerEmail: customer_email.trim().toLowerCase(), // Note: camelCase
+      payerEmail: customer_email.trim().toLowerCase(),
       description: `Payment for ${items.length} item(s) from DAIKO Store`,
-      invoiceDuration: 86400, // 24 hours in seconds
+      invoiceDuration: 86400,
       currency: 'IDR',
       reminderTime: 1,
       successRedirectUrl: successRedirectUrl,
       failureRedirectUrl: successRedirectUrl,
     };
 
-    // Add customer details if name is provided
     if (customer_name && customer_name.trim()) {
       invoiceData.customer = {
         givenNames: customer_name.trim(),
         email: customer_email.trim().toLowerCase(),
       };
-      
       if (customer_phone) {
         invoiceData.customer.mobileNumber = customer_phone.trim();
       }
     }
 
-    // Add items if they have proper structure
     if (items && items.length > 0) {
       invoiceData.items = items.map(item => ({
         name: item.name || 'Product',
@@ -100,7 +95,6 @@ export default async function handler(req, res) {
 
     console.log('✅ Xendit response:', invoice);
 
-    // ✅ Save order to database
     const newOrder = await Order.create({
       external_id: externalId,
       amount: total,
@@ -110,7 +104,7 @@ export default async function handler(req, res) {
         price: item.price,
         quantity: item.quantity || 1,
       })),
-      status: 'pending', 
+      status: 'pending',
       customer_name: customer_name || 'Customer',
       customer_email: customer_email.trim().toLowerCase(),
       customer_phone: customer_phone || null,
@@ -122,19 +116,14 @@ export default async function handler(req, res) {
     console.log('✅ Order created:', newOrder._id);
     console.log('✅ Invoice URL:', invoice.invoiceUrl || invoice.invoice_url);
 
-    // ✅ Send WhatsApp notification
+    // ✅ Send WhatsApp notification via helper
     if (customer_phone) {
       try {
-        const phoneNumber = customer_phone.startsWith('+') 
-          ? customer_phone 
-          : `+${customer_phone}`;
-          
-        await client.messages.create({
-          from: process.env.TWILIO_WHATSAPP_NUMBER,
-          to: `whatsapp:${phoneNumber}`,
-          body: `✅ Hello ${customer_name || 'Customer'}!\n\nYour order has been created.\nOrder ID: ${newOrder._id}\nTotal: Rp ${total.toLocaleString()}\n\nComplete payment here:\n${invoice.invoiceUrl || invoice.invoice_url}\n\nThank you for shopping with DAIKO! 🛍️`,
-        });
-        console.log('📲 WhatsApp message sent to', phoneNumber);
+        const phoneNumber = customer_phone.replace(/\D/g, '');
+        const messageBody = `✅ Hello ${customer_name || 'Customer'}!\n\nYour order has been created.\nOrder ID: ${newOrder._id}\nTotal: Rp ${total.toLocaleString()}\n\nComplete payment here:\n${invoice.invoiceUrl || invoice.invoice_url}\n\nThank you for shopping with DAIKO! 🛍️`;
+        
+        await sendWhatsAppVerification(phoneNumber, messageBody);
+        console.log('📲 WhatsApp notification sent to', phoneNumber);
       } catch (err) {
         console.error('⚠️ WhatsApp send failed:', err.message);
       }
@@ -150,13 +139,10 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('💥 Xendit/Create Order Error:', error);
-    
-    // Log detailed error info
     if (error.response) {
       console.error('Error response:', error.response);
       console.error('Error data:', error.response.data);
     }
-    
     if (error.errorCode) {
       console.error('Error code:', error.errorCode);
       console.error('Error message:', error.errorMessage);
